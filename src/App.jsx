@@ -257,6 +257,9 @@ function App() {
       const draftKey = `draft_${session.user.id}_${formData.year}_${formData.month}`;
       localStorage.removeItem(draftKey);
       
+      // Update lastLoadedPeriod to the current one so useEffect skips re-syncing
+      setLastLoadedPeriod(`${formData.year}-${formData.month}`);
+
       // Reset form instantly
       setFormData(prev => ({
         ...prev,
@@ -520,6 +523,7 @@ function App() {
             </tbody>
           </table>
       </div>
+      <p style={{ textAlign: 'center', marginTop: '40px', color: 'rgba(255,255,255,0.1)', fontSize: '0.7rem' }}>Llevaré Sistema de Finanzas v2.0.1 - Protección de Sincronización Activa</p>
     </div>
   );
 }
