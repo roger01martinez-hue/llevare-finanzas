@@ -110,39 +110,41 @@ function App() {
     }
   }, [formData, session]);
 
-  // Sync Form with existing data or draft
-  useEffect(() => {
-    if (!session || !initialLoad || isSuccess) return;
-
-    const currentPeriod = `${formData.year}-${formData.month}`;
+  // Helper to load data for a specific period
+  const loadPeriodData = (month, year, currentRecords = records) => {
+    const existing = currentRecords.find(r => r.year === Number(year) && r.month === month);
     
-    // Only auto-sync if we have switched to a different month/year
-    if (lastLoadedPeriod !== currentPeriod) {
-      const existing = records.find(r => r.year === Number(formData.year) && r.month === formData.month);
-      
-      if (existing) {
-        setFormData(prev => ({
-          ...prev,
-          incomeItems: existing.income_items?.length > 0 ? existing.income_items : [{ id: Date.now(), description: '', amount: '' }],
-          expenseItems: existing.expense_items?.length > 0 ? existing.expense_items : [{ id: Date.now() + 1, description: '', amount: '' }]
-        }));
+    if (existing) {
+      setFormData({
+        year,
+        month,
+        incomeItems: existing.income_items?.length > 0 ? existing.income_items : [{ id: Date.now(), description: '', amount: '' }],
+        expenseItems: existing.expense_items?.length > 0 ? existing.expense_items : [{ id: Date.now() + 1, description: '', amount: '' }]
+      });
+    } else {
+      // Check for draft
+      const draftKey = `draft_${session.user.id}_${year}_${month}`;
+      const savedDraft = localStorage.getItem(draftKey);
+      if (savedDraft) {
+        setFormData(JSON.parse(savedDraft));
       } else {
-        // Only clear if no draft exists
-        const draftKey = `draft_${session.user.id}_${formData.year}_${formData.month}`;
-        const savedDraft = localStorage.getItem(draftKey);
-        if (savedDraft) {
-          setFormData(JSON.parse(savedDraft));
-        } else {
-          setFormData(prev => ({
-            ...prev,
-            incomeItems: [{ id: Date.now(), description: '', amount: '' }],
-            expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]
-          }));
-        }
+        setFormData({
+          year,
+          month,
+          incomeItems: [{ id: Date.now(), description: '', amount: '' }],
+          expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]
+        });
       }
-      setLastLoadedPeriod(currentPeriod);
     }
-  }, [formData.month, formData.year, records, session, isSuccess, lastLoadedPeriod]);
+  };
+
+  // Initial Sync: Only runs once when records are first fetched
+  useEffect(() => {
+    if (initialLoad && session && !lastLoadedPeriod) {
+      loadPeriodData(formData.month, formData.year);
+      setLastLoadedPeriod(`${formData.year}-${formData.month}`);
+    }
+  }, [initialLoad, session]);
 
   // Auth Handlers
   const handleAuth = async (e) => {
@@ -205,14 +207,12 @@ function App() {
   const displayYear = Number(formData.year);
 
   const stats = useMemo(() => {
-    const record = processedRecords.find(r => r.year === displayYear && r.month === displayMonth) || { income: 0, expenses: 0, utility: 0 };
-    const currentYearRecords = processedRecords.filter(r => r.year === displayYear);
-    const totalAccumulated = currentYearRecords.reduce((acc, curr) => acc + curr.utility, 0);
+    const record = processedRecords.find(r => r.year === displayYear && r.month === displayMonth) || { income: 0, expenses: 0, utility: 0, accumulated: 0 };
     return {
       monthIncome: record.income,
       monthExpenses: record.expenses,
       monthUtility: record.utility,
-      yearAccumulated: totalAccumulated,
+      yearAccumulated: record.accumulated || 0,
       displayMonth,
       displayYear
     };
@@ -376,6 +376,7 @@ function App() {
         <StatCard title="Ingresos" value={formatCurrency(stats.monthIncome)} icon={<TrendingUp color="var(--success)" />} subtitle={stats.displayMonth} />
         <StatCard title="Gastos" value={formatCurrency(stats.monthExpenses)} icon={<TrendingDown color="var(--danger)" />} subtitle={stats.displayMonth} />
         <StatCard title="Utilidad Real" value={formatCurrency(stats.monthUtility)} icon={<DollarSign color="var(--primary)" />} subtitle={`Neto ${stats.displayMonth}`} isProfit={stats.monthUtility >= 0} />
+        <StatCard title="Acumulado Año" value={formatCurrency(stats.yearAccumulated)} icon={<Calendar color="var(--primary)" />} subtitle={`Ene - ${stats.displayMonth}`} isProfit={stats.yearAccumulated >= 0} />
         <StatCard title="Proyección Año" value={formatCurrency(projections.yearEnd)} icon={<BarChart3 color="#8b5cf6" />} subtitle="Estimado Diciembre" />
       </div>
 
@@ -422,18 +423,33 @@ function App() {
                   )}
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Año</label>
-                  <input type="number" value={formData.year} onChange={e => setFormData({...formData, year: e.target.value})} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Año</label>
+                    <input 
+                      type="number" 
+                      value={formData.year} 
+                      onChange={e => {
+                        const newYear = e.target.value;
+                        setFormData({...formData, year: newYear});
+                        loadPeriodData(formData.month, newYear);
+                      }} 
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Mes</label>
+                    <select 
+                      value={formData.month} 
+                      onChange={e => {
+                        const newMonth = e.target.value;
+                        setFormData({...formData, month: newMonth});
+                        loadPeriodData(newMonth, formData.year);
+                      }}
+                    >
+                      {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Mes</label>
-                  <select value={formData.month} onChange={e => setFormData({...formData, month: e.target.value})}>
-                    {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-              </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
                 <div style={{ borderLeft: '3px solid var(--success)', paddingLeft: '15px' }}>
