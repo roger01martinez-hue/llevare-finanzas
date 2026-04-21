@@ -15,7 +15,9 @@ import {
   Mail,
   UserPlus,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  Save,
+  CheckCircle2
 } from 'lucide-react';
 import {
   BarChart,
@@ -48,10 +50,12 @@ function App() {
   const [session, setSession] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   
   const [authData, setAuthData] = useState({ email: '', password: '' });
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [formData, setFormData] = useState({
     year: new Date().getFullYear(),
     month: MONTHS[new Date().getMonth()],
@@ -87,25 +91,56 @@ function App() {
     if (!error && data) {
       setRecords(data);
     }
+    setInitialLoad(true);
   };
 
-  // Sync Form with existing data
+  // --- Persistence Logic ---
+  
+  // Save draft to localStorage whenever formData changes
   useEffect(() => {
-    if (!session) return;
+    if (session && formData.incomeItems.length > 0) {
+      setIsSavingDraft(true);
+      const draftKey = `draft_${session.user.id}_${formData.year}_${formData.month}`;
+      localStorage.setItem(draftKey, JSON.stringify(formData));
+      
+      const timer = setTimeout(() => setIsSavingDraft(false), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [formData, session]);
+
+  // Sync Form with existing data or draft
+  useEffect(() => {
+    if (!session || !initialLoad) return;
+    
     const existing = records.find(r => r.year === Number(formData.year) && r.month === formData.month);
+    
     if (existing) {
       setFormData(prev => ({
         ...prev,
-        incomeItems: existing.income_items || [{ id: Date.now(), description: 'Ingreso', amount: 0 }],
-        expenseItems: existing.expense_items || [{ id: Date.now() + 1, description: 'Gasto', amount: 0 }]
+        incomeItems: existing.income_items || [],
+        expenseItems: existing.expense_items || []
       }));
     } else {
-      setFormData(prev => ({
-        ...prev,
-        incomeItems: [{ id: Date.now(), description: '', amount: '' }],
-        expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]
-      }));
+      // Check for draft in localStorage before resetting
+      const draftKey = `draft_${session.user.id}_${formData.year}_${formData.month}`;
+      const savedDraft = localStorage.getItem(draftKey);
+      
+      if (savedDraft) {
+        const parsed = JSON.parse(savedDraft);
+        // Only apply if it matches current period to avoid race conditions
+        if (parsed.year === formData.year && parsed.month === formData.month) {
+          setFormData(parsed);
+        }
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          incomeItems: [{ id: Date.now(), description: '', amount: '' }],
+          expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]
+        }));
+      }
     }
+    // We only want to trigger this when period changes or records are refreshed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.month, formData.year, records, session]);
 
   // Auth Handlers
@@ -216,8 +251,14 @@ function App() {
       expense_items: formData.expenseItems
     };
     const { error } = await supabase.from('finanzas_records').upsert(newRecord, { onConflict: 'year, month, user_id' });
-    if (!error) fetchRecords();
-    else alert("Error: " + error.message);
+    if (!error) {
+      // Clear draft on success
+      const draftKey = `draft_${session.user.id}_${formData.year}_${formData.month}`;
+      localStorage.removeItem(draftKey);
+      fetchRecords();
+    } else {
+      alert("Error: " + error.message);
+    }
   };
 
   if (loading) {
@@ -312,9 +353,20 @@ function App() {
 
       <div className="charts-grid" style={{ gridTemplateColumns: '1.2fr 1.8fr' }}>
         <div className="glass-card" style={{ padding: '30px' }}>
-          <h2 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <PlusCircle size={22} color="var(--primary)" /> Gestionar Periodo
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+              <PlusCircle size={22} color="var(--primary)" /> Gestionar Periodo
+            </h2>
+            {isSavingDraft ? (
+              <div className="status-badge saving pulse">
+                <Save size={14} /> Guardando...
+              </div>
+            ) : (
+              <div className="status-badge">
+                <CheckCircle2 size={14} color="var(--success)" /> Borrador listo
+              </div>
+            )}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Año</label>

@@ -131,6 +131,35 @@ button.primary:active {
   margin-bottom: 40px;
 }
 
+/* Status Badges */
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+}
+
+.status-badge.saving {
+  color: var(--primary);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
 @media (max-width: 768px) {
   .charts-grid {
     grid-template-columns: 1fr;
