@@ -52,6 +52,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [lastLoadedPeriod, setLastLoadedPeriod] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   
@@ -111,36 +112,37 @@ function App() {
 
   // Sync Form with existing data or draft
   useEffect(() => {
-    if (!session || !initialLoad || isSuccess) return; // Don't sync if success screen is active
+    if (!session || !initialLoad || isSuccess) return;
+
+    const currentPeriod = `${formData.year}-${formData.month}`;
     
-    // Check if we already have data in formData that matches this period to avoid redundant loads
-    const existing = records.find(r => r.year === Number(formData.year) && r.month === formData.month);
-    
-    if (existing) {
-      setFormData(prev => ({
-        ...prev,
-        incomeItems: existing.income_items || [],
-        expenseItems: existing.expense_items || []
-      }));
-    } else {
-      // Check for draft in localStorage before resetting
-      const draftKey = `draft_${session.user.id}_${formData.year}_${formData.month}`;
-      const savedDraft = localStorage.getItem(draftKey);
+    // Only auto-sync if we have switched to a different month/year
+    if (lastLoadedPeriod !== currentPeriod) {
+      const existing = records.find(r => r.year === Number(formData.year) && r.month === formData.month);
       
-      if (savedDraft) {
-        const parsed = JSON.parse(savedDraft);
-        if (parsed.year === formData.year && parsed.month === formData.month) {
-          setFormData(parsed);
-        }
-      } else {
+      if (existing) {
         setFormData(prev => ({
           ...prev,
-          incomeItems: [{ id: Date.now(), description: '', amount: '' }],
-          expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]
+          incomeItems: existing.income_items?.length > 0 ? existing.income_items : [{ id: Date.now(), description: '', amount: '' }],
+          expenseItems: existing.expense_items?.length > 0 ? existing.expense_items : [{ id: Date.now() + 1, description: '', amount: '' }]
         }));
+      } else {
+        // Only clear if no draft exists
+        const draftKey = `draft_${session.user.id}_${formData.year}_${formData.month}`;
+        const savedDraft = localStorage.getItem(draftKey);
+        if (savedDraft) {
+          setFormData(JSON.parse(savedDraft));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            incomeItems: [{ id: Date.now(), description: '', amount: '' }],
+            expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]
+          }));
+        }
       }
+      setLastLoadedPeriod(currentPeriod);
     }
-  }, [formData.month, formData.year, records, session, isSuccess]);
+  }, [formData.month, formData.year, records, session, isSuccess, lastLoadedPeriod]);
 
   // Auth Handlers
   const handleAuth = async (e) => {
@@ -255,14 +257,13 @@ function App() {
       const draftKey = `draft_${session.user.id}_${formData.year}_${formData.month}`;
       localStorage.removeItem(draftKey);
       
-      // Success feedback and reset
+      // Reset form instantly
       setFormData(prev => ({
         ...prev,
         incomeItems: [{ id: Date.now(), description: '', amount: '' }],
         expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]
       }));
       
-      alert("¡Datos guardados con éxito para " + formData.month + " " + formData.year + "!");
       setIsSuccess(true);
       fetchRecords();
     } else {
@@ -400,15 +401,23 @@ function App() {
                 <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
                   <PlusCircle size={22} color="var(--primary)" /> Gestionar Periodo
                 </h2>
-                {isSavingDraft ? (
-                  <div className="status-badge saving pulse">
-                    <Save size={14} /> Guardando...
-                  </div>
-                ) : (
-                  <div className="status-badge">
-                    <CheckCircle2 size={14} color="var(--success)" /> Borrador listo
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <button 
+                    onClick={() => setFormData({...formData, incomeItems: [{ id: Date.now(), description: '', amount: '' }], expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]})}
+                    style={{ background: 'none', color: 'var(--text-dim)', fontSize: '0.75rem', border: '1px solid var(--glass-border)', padding: '4px 10px', borderRadius: '8px' }}
+                  >
+                    Limpiar Todo
+                  </button>
+                  {isSavingDraft ? (
+                    <div className="status-badge saving pulse">
+                      <Save size={14} /> Guardando...
+                    </div>
+                  ) : (
+                    <div className="status-badge">
+                      <CheckCircle2 size={14} color="var(--success)" /> Borrador listo
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
