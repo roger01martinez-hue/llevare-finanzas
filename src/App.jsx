@@ -51,6 +51,7 @@ function App() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   
@@ -255,10 +256,35 @@ function App() {
       // Clear draft on success
       const draftKey = `draft_${session.user.id}_${formData.year}_${formData.month}`;
       localStorage.removeItem(draftKey);
+      
+      // Success feedback and reset
+      setFormData(prev => ({
+        ...prev,
+        incomeItems: [{ id: Date.now(), description: '', amount: '' }],
+        expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]
+      }));
+      
+      alert("¡Datos guardados con éxito para " + formData.month + " " + formData.year + "!");
+      setIsSuccess(true);
       fetchRecords();
     } else {
       alert("Error: " + error.message);
     }
+  };
+
+  const handleNextMonth = () => {
+    const currentIndex = MONTHS.indexOf(formData.month);
+    const nextIndex = (currentIndex + 1) % 12;
+    const nextYear = nextIndex === 0 ? Number(formData.year) + 1 : formData.year;
+    
+    setFormData({
+      ...formData,
+      month: MONTHS[nextIndex],
+      year: nextYear,
+      incomeItems: [{ id: Date.now(), description: '', amount: '' }],
+      expenseItems: [{ id: Date.now() + 1, description: '', amount: '' }]
+    });
+    setIsSuccess(false);
   };
 
   if (loading) {
@@ -352,59 +378,80 @@ function App() {
       </div>
 
       <div className="charts-grid" style={{ gridTemplateColumns: '1.2fr 1.8fr' }}>
-        <div className="glass-card" style={{ padding: '30px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
-              <PlusCircle size={22} color="var(--primary)" /> Gestionar Periodo
-            </h2>
-            {isSavingDraft ? (
-              <div className="status-badge saving pulse">
-                <Save size={14} /> Guardando...
-              </div>
-            ) : (
-              <div className="status-badge">
-                <CheckCircle2 size={14} color="var(--success)" /> Borrador listo
-              </div>
-            )}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Año</label>
-              <input type="number" value={formData.year} onChange={e => setFormData({...formData, year: e.target.value})} />
+        <div className="glass-card" style={{ padding: '30px', position: 'relative', overflow: 'hidden' }}>
+          {isSuccess ? (
+            <div className="fade-in" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '20px' }}>
+               <div style={{ background: 'var(--success)', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', boxShadow: '0 0 30px rgba(16, 185, 129, 0.4)' }}>
+                  <CheckCircle2 color="white" size={40} />
+               </div>
+               <h2 className="glow-text" style={{ fontSize: '1.8rem', color: 'var(--success)', marginBottom: '10px' }}>¡Guardado con Éxito!</h2>
+               <p style={{ color: 'var(--text-dim)', marginBottom: '40px' }}>Los datos de {formData.month} {formData.year} ya están en la nube.</p>
+               
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
+                  <button onClick={handleNextMonth} className="primary" style={{ height: '50px', fontSize: '1rem' }}>
+                    Pasar al Siguiente Mes
+                  </button>
+                  <button onClick={() => setIsSuccess(false)} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--glass-border)', padding: '15px' }}>
+                    Ver/Editar este mes
+                  </button>
+               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Mes</label>
-              <select value={formData.month} onChange={e => setFormData({...formData, month: e.target.value})}>
-                {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-          </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+                  <PlusCircle size={22} color="var(--primary)" /> Gestionar Periodo
+                </h2>
+                {isSavingDraft ? (
+                  <div className="status-badge saving pulse">
+                    <Save size={14} /> Guardando...
+                  </div>
+                ) : (
+                  <div className="status-badge">
+                    <CheckCircle2 size={14} color="var(--success)" /> Borrador listo
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Año</label>
+                  <input type="number" value={formData.year} onChange={e => setFormData({...formData, year: e.target.value})} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Mes</label>
+                  <select value={formData.month} onChange={e => setFormData({...formData, month: e.target.value})}>
+                    {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-            <div style={{ borderLeft: '3px solid var(--success)', paddingLeft: '15px' }}>
-              <h3 style={{ fontSize: '1rem', marginBottom: '15px', color: 'var(--success)' }}>Detalle de Ingresos</h3>
-              {formData.incomeItems.map(item => (
-                <div key={item.id} style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center' }}>
-                  <input style={{ flex: 2 }} placeholder="Descripción" value={item.description} onChange={e => handleItemChange('income', item.id, 'description', e.target.value)} />
-                  <input style={{ flex: 1 }} type="number" placeholder="$" value={item.amount} onChange={e => handleItemChange('income', item.id, 'amount', e.target.value)} />
-                  <button onClick={() => removeItem('income', item.id)} style={{ color: 'var(--danger)', background: 'none' }}><Minus size={18} /></button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                <div style={{ borderLeft: '3px solid var(--success)', paddingLeft: '15px' }}>
+                  <h3 style={{ fontSize: '1rem', marginBottom: '15px', color: 'var(--success)' }}>Detalle de Ingresos</h3>
+                  {formData.incomeItems.map(item => (
+                    <div key={item.id} style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center' }}>
+                      <input style={{ flex: 2 }} placeholder="Descripción" value={item.description} onChange={e => handleItemChange('income', item.id, 'description', e.target.value)} />
+                      <input style={{ flex: 1 }} type="number" placeholder="$" value={item.amount} onChange={e => handleItemChange('income', item.id, 'amount', e.target.value)} />
+                      <button onClick={() => removeItem('income', item.id)} style={{ color: 'var(--danger)', background: 'none' }}><Minus size={18} /></button>
+                    </div>
+                  ))}
+                  <button onClick={() => addItem('income')} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85rem', color: 'var(--success)', background: 'none', border: '1px dashed var(--success)', padding: '5px 10px', borderRadius: '8px' }}><Plus size={14} /> Añadir Ingreso</button>
                 </div>
-              ))}
-              <button onClick={() => addItem('income')} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85rem', color: 'var(--success)', background: 'none', border: '1px dashed var(--success)', padding: '5px 10px', borderRadius: '8px' }}><Plus size={14} /> Añadir Ingreso</button>
-            </div>
-            <div style={{ borderLeft: '3px solid var(--danger)', paddingLeft: '15px' }}>
-              <h3 style={{ fontSize: '1rem', marginBottom: '15px', color: 'var(--danger)' }}>Detalle de Gastos</h3>
-              {formData.expenseItems.map(item => (
-                <div key={item.id} style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center' }}>
-                  <input style={{ flex: 2 }} placeholder="Concepto" value={item.description} onChange={e => handleItemChange('expense', item.id, 'description', e.target.value)} />
-                  <input style={{ flex: 1 }} type="number" placeholder="$" value={item.amount} onChange={e => handleItemChange('expense', item.id, 'amount', e.target.value)} />
-                  <button onClick={() => removeItem('expense', item.id)} style={{ color: 'var(--danger)', background: 'none' }}><Minus size={18} /></button>
+                <div style={{ borderLeft: '3px solid var(--danger)', paddingLeft: '15px' }}>
+                  <h3 style={{ fontSize: '1rem', marginBottom: '15px', color: 'var(--danger)' }}>Detalle de Gastos</h3>
+                  {formData.expenseItems.map(item => (
+                    <div key={item.id} style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center' }}>
+                      <input style={{ flex: 2 }} placeholder="Concepto" value={item.description} onChange={e => handleItemChange('expense', item.id, 'description', e.target.value)} />
+                      <input style={{ flex: 1 }} type="number" placeholder="$" value={item.amount} onChange={e => handleItemChange('expense', item.id, 'amount', e.target.value)} />
+                      <button onClick={() => removeItem('expense', item.id)} style={{ color: 'var(--danger)', background: 'none' }}><Minus size={18} /></button>
+                    </div>
+                  ))}
+                  <button onClick={() => addItem('expense')} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85rem', color: 'var(--danger)', background: 'none', border: '1px dashed var(--danger)', padding: '5px 10px', borderRadius: '8px' }}><Plus size={14} /> Añadir Gasto</button>
                 </div>
-              ))}
-              <button onClick={() => addItem('expense')} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85rem', color: 'var(--danger)', background: 'none', border: '1px dashed var(--danger)', padding: '5px 10px', borderRadius: '8px' }}><Plus size={14} /> Añadir Gasto</button>
-            </div>
-          </div>
-          <button onClick={saveRecord} className="primary" style={{ width: '100%', marginTop: '30px' }}>Guardar en la Nube</button>
+              </div>
+              <button onClick={saveRecord} className="primary" style={{ width: '100%', marginTop: '30px' }}>Guardar en la Nube</button>
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
