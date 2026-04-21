@@ -111,8 +111,9 @@ function App() {
 
   // Sync Form with existing data or draft
   useEffect(() => {
-    if (!session || !initialLoad) return;
+    if (!session || !initialLoad || isSuccess) return; // Don't sync if success screen is active
     
+    // Check if we already have data in formData that matches this period to avoid redundant loads
     const existing = records.find(r => r.year === Number(formData.year) && r.month === formData.month);
     
     if (existing) {
@@ -128,7 +129,6 @@ function App() {
       
       if (savedDraft) {
         const parsed = JSON.parse(savedDraft);
-        // Only apply if it matches current period to avoid race conditions
         if (parsed.year === formData.year && parsed.month === formData.month) {
           setFormData(parsed);
         }
@@ -140,9 +140,7 @@ function App() {
         }));
       }
     }
-    // We only want to trigger this when period changes or records are refreshed
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.month, formData.year, records, session]);
+  }, [formData.month, formData.year, records, session, isSuccess]);
 
   // Auth Handlers
   const handleAuth = async (e) => {
